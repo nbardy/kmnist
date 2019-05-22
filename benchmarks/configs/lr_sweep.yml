@@ -1,0 +1,28 @@
+description: Learning Rate Sweep for Pytorch Mnist Competition
+
+# Training script to run
+program: pytorch_kmnist.py  
+
+# Method can be bayes, random, grid
+method: bayes
+
+# Metric to optimize
+metric:
+  name: kmnist_val_acc
+  goal: minimize
+
+# Should we early terminate runs
+early_terminate:
+  type: envelope
+
+# Parameters to search over
+parameters:
+  learning_rate_start:
+    min: 0.01
+    max: 0.02
+  learning_rate_end:
+    min: 0.0001
+    max: 0.02
+  dropout:
+    min: 0.2
+    max: 0.7
