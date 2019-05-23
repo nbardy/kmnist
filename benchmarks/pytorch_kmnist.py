@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.datasets as dsets
+import argparse
 from torch.autograd import Variable
 import torch.nn.functional as F
 from utils import load_train_data, load_test_data, load
@@ -16,14 +17,8 @@ from PIL import Image
 import wandb
 import os
 
-wandb.init()
-config = wandb.config
-
-config.dropout = 0.5
-config.channels_one = 16
-config.channels_two = 32
-config.batch_size = 100
-config.epochs = 50
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print('Using device:', device)
 
 class CNNModel(nn.Module):
     def __init__(self):
@@ -163,20 +158,26 @@ def main():
                                               shuffle=False)
 
 
-    model = CNNModel()
+    model = CNNModel().to(device)
     wandb.watch(model)
 
     criterion = nn.CrossEntropyLoss()
-    config.learning_rate = 0.001
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate_start)
+    current_lr = config.learning_rate_start
 
     iter = 0
     for epoch in range(config.epochs):
+        # Set variable learning rate
+
+        current_lr *= config.learning_rate_decay
+        for param_group in optimizer.param_groups:
+            param_group['lr']= current_lr
+
         for i, (images, labels) in enumerate(train_loader):
 
-            images = Variable(images)
-            labels = Variable(labels)
+            images = Variable(images).to(device)
+            labels = Variable(labels).to(device)
 
             # Clear gradients w.r.t. parameters
             optimizer.zero_grad()
@@ -195,7 +196,7 @@ def main():
 
             iter += 1
 
-            if iter % 100 == 0:
+            if iter % config.log_rate == 0:
                 # Calculate Accuracy
                 correct = 0
                 correct_arr = [0.0] * 10
@@ -204,7 +205,8 @@ def main():
 
                 # Iterate through test dataset
                 for images, labels in test_loader:
-                    images = Variable(images)
+                    labels = labels.to(device)
+                    images = Variable(images).to(device)
 
                     # Forward pass only to get logits/output
                     outputs = model(images)
@@ -224,9 +226,57 @@ def main():
 
                 accuracy = float(correct) / total
 
-                metrics = {'kmnist_val_acc': accuracy, 'val_loss': loss}
+                metrics = {'kmnist_val_acc': accuracy, 'val_loss': loss, 'lr': current_lr}
                 wandb.log(metrics)
 
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+  parser.add_argument(
+    "--dropout",
+    type=float,
+    default=0.5,
+    help="Dropout rate")
 
-if __name__ == '__main__':
-   main()
+  parser.add_argument(
+    "--channels_one",
+    type=int,
+    default=16,
+    help="layer-1 output size")
+
+  parser.add_argument(
+    "--channels_two",
+    type=int,
+    default=32,
+    help="layer-2 output size")
+
+  parser.add_argument(
+    "--batch_size",
+    type=int,
+    default=4000,
+    help="batch size")
+
+  parser.add_argument(
+    "--epochs",
+    type=int,
+    default=100,
+    help="epochs")
+
+  parser.add_argument(
+    "--learning_rate_start",
+    type=float,
+    default=0.001,
+    help="learning rate")
+
+  parser.add_argument(
+    "--learning_rate_decay",
+    type=float,
+    default=1,
+    help="learning rate decay")
+
+  args = parser.parse_args()
+  wandb.init()
+  wandb.config.update(args, allow_val_change=True)
+
+  config = wandb.config
+  config.log_rate = 100
+  main()

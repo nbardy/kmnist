@@ -18,11 +18,11 @@ early_terminate:
 # Parameters to search over
 parameters:
   learning_rate_start:
-    min: 0.01
-    max: 0.02
-  learning_rate_end:
-    min: 0.0001
-    max: 0.02
+    min: 0.001
+    max: 0.05
+  learning_rate_decay:
+    min: 0.8
+    max: 1
   dropout:
-    min: 0.2
-    max: 0.7
+    min: 0.4
+    max: 0.6
